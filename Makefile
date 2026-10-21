@@ -14,7 +14,7 @@ SOURCES := $(wildcard $(SRC_DIR)/*.asm)
 OBJECTS := $(patsubst $(SRC_DIR)/%.asm, $(BIN_DIR)/%.o, $(SOURCES))
 BINARIES := $(patsubst $(SRC_DIR)/%.asm, $(BIN_DIR)/%, $(SOURCES))
 
-.PHONY: all clean run-hello run-pointers
+.PHONY: all clean run-hello run-pointers run-control-flow run-subroutines
 
 all: $(BINARIES)
 
@@ -32,6 +32,12 @@ run-hello: $(BIN_DIR)/HelloW
 
 run-pointers: $(BIN_DIR)/pointers
 	@./$(BIN_DIR)/pointers
+
+run-control-flow: $(BIN_DIR)/control_flow
+	@./$(BIN_DIR)/control_flow
+
+run-subroutines: $(BIN_DIR)/subroutines
+	@./$(BIN_DIR)/subroutines
 
 clean:
 	rm -rf $(BIN_DIR)

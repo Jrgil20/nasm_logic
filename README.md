@@ -2,7 +2,7 @@
 
 Este repositorio contiene ejemplos prácticos y didácticos diseñados para comprender los fundamentos del ensamblador **NASM** (*Netwide Assembler*) en entornos Linux de 32 bits (`x86`).
 
-El propósito es estudiar el modelo mental del procesador, la interacción directa con el kernel mediante llamadas al sistema (*syscalls*), la gestión de memoria por segmentos y la aritmética de punteros sin capas de abstracción.
+El propósito es estudiar el modelo mental del procesador, la interacción directa con el kernel mediante llamadas al sistema (*syscalls*), la gestión de memoria por segmentos, la aritmética de punteros, el control de flujo y la mecánica del stack con subrutinas.
 
 ---
 
@@ -55,6 +55,43 @@ En Linux x86 (32 bits), la comunicación con el kernel se realiza mediante la in
   - `EDI` (*Extended Destination Index*): Empleado por convención como puntero escritor / destino.
   - La sintaxis `byte [esi]` desreferencia el puntero para leer el contenido del byte apuntado en memoria.
 
+### 4. Control de Flujo y Banderas (`EFLAGS`)
+
+Las bifurcaciones y bucles en ensamblador se basan en la inspección de banderas de estado:
+
+- **Instrucción `cmp a, b`**: Realiza una resta interna `a - b` sin guardar el resultado, únicamente actualizando el registro de banderas `EFLAGS`:
+  - `ZF` (*Zero Flag*): Se enciende si el resultado es `0` (indica igualdad `a == b`).
+  - `SF` (*Sign Flag*): Se enciende si el resultado es negativo (`a < b`).
+  - `CF` (*Carry Flag*): Bandera de acarreo para aritmética sin signo.
+- **Instrucción `test a, b`**: Realiza una operación lógica `AND` bit a bit sin alterar los registros, ideal para comprobar bits específicos (como paridad probando el bit menos significativo con `test reg, 1`).
+- **Saltos condicionales**:
+  - `je` / `jz`: Salta si es igual o cero (`ZF = 1`).
+  - `jne` / `jnz`: Salta si no es igual o no cero (`ZF = 0`).
+  - `jg` / `jl`: Salta si mayor / menor con signo.
+  - `jge` / `jle`: Salta si mayor o igual / menor o igual con signo.
+
+### 5. Pila (*Stack*), Subrutinas y Convención cdecl
+
+El Stack es una estructura LIFO que en la arquitectura x86 crece hacia direcciones menores de memoria:
+
+- **`ESP` (*Stack Pointer*)**: Apunta siempre a la cima actual de la pila.
+- **`EBP` (*Base Pointer*)**: Se usa como ancla fija para acceder a parámetros y variables locales.
+- **`call` y `ret`**:
+  - `call func`: Apila automáticamente la dirección de la siguiente instrucción (*return address*) y salta a la función.
+  - `ret`: Desapila la dirección de retorno hacia el puntero de instrucción `EIP` y continúa la ejecución del llamador.
+- **Marco de pila (*Stack Frame*)**:
+  ```nasm
+  mi_subrutina:
+      push ebp            ; Salvar EBP del llamador
+      mov ebp, esp        ; Fijar base del nuevo marco
+      ; [ebp + 8]  -> 1er argumento
+      ; [ebp + 12] -> 2do argumento
+      mov esp, ebp        ; Restaurar ESP
+      pop ebp             ; Restaurar EBP anterior
+      ret
+  ```
+- **Convención `cdecl`**: Los argumentos se apilan de derecha a izquierda, el llamador limpia la pila tras el retorno (`add esp, bytes`) y el valor de retorno entero se devuelve en `EAX`.
+
 ---
 
 ## 📂 Contenido del Proyecto
@@ -70,6 +107,16 @@ En Linux x86 (32 bits), la comunicación con el kernel se realiza mediante la in
   - Recorrido de memoria carácter por carácter con `ESI` y `EDI` para separar/tokenizar la primera palabra de una frase.
   - Manejo de delimitadores reales: espacio (`' '`), salto de línea (`\n` generado al presionar Enter) y byte nulo (`0`).
   - Cálculo dinámico de la longitud resultante restando punteros de destino: `EDI - output_buffer`.
+
+- **[`src/control_flow.asm`](src/control_flow.asm)**:
+  - Bucle aritmético iterativo (suma acumulada del 1 al 5).
+  - Bifurcaciones condicionales comparando con umbrales (`cmp` y `jge` / `jl`).
+  - Verificación bit a bit de paridad con `test` y saltos según `ZF`.
+
+- **[`src/subroutines.asm`](src/subroutines.asm)**:
+  - Modularización con subrutinas y convención de llamadas estándar `cdecl`.
+  - Función matemática `calcular_cuadrado` con paso de argumentos vía stack y retorno en `EAX`.
+  - Subrutina de impresión genérica `print_msg` con preservación de registros llamadores (*callee-saved registers*).
 
 ---
 
@@ -103,7 +150,7 @@ Se incluye un `Makefile` para automatizar el ensamblado (`nasm -f elf32`) y el e
 ```bash
 make
 ```
-Los binarios ejecutables se generarán en la carpeta `bin/`.
+Los binarios ejecutables se generarán automáticamente en la carpeta `bin/`.
 
 ### Ejecutar ejemplos
 ```bash
@@ -112,18 +159,24 @@ make run-hello
 
 # Tokenizador con punteros
 make run-pointers
+
+# Control de flujo y banderas EFLAGS
+make run-control-flow
+
+# Subrutinas y Stack Frame
+make run-subroutines
 ```
 
 ### Compilación manual (sin Make)
 ```bash
 # 1. Ensamblar a formato objeto ELF de 32 bits
-nasm -f elf32 src/HelloW.asm -o HelloW.o
+nasm -f elf32 src/control_flow.asm -o control_flow.o
 
 # 2. Enlazar con emulación i386
-ld -m elf_i386 HelloW.o -o HelloW
+ld -m elf_i386 control_flow.o -o control_flow
 
 # 3. Ejecutar
-./HelloW
+./control_flow
 ```
 
 ### Limpiar binarios generados
